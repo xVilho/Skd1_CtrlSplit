@@ -4,7 +4,7 @@
         <OutputType>Library</OutputType>
         <PlatformTarget>x64</PlatformTarget>
         <!-- Fix architecture mismatch -->
-        <AssemblyName>Scrollermod</AssemblyName>
+        <AssemblyName>CtrlSplit</AssemblyName>
     </PropertyGroup>
     <ItemGroup>
         <!-- MelonLoader core -->

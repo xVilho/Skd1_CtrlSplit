@@ -1,31 +1,47 @@
-﻿using MelonLoader;
+using MelonLoader;
 using HarmonyLib;
 using UnityEngine;
 using Il2CppScheduleOne.UI;
 using Il2CppScheduleOne.UI.Items;
+using Il2CppScheduleOne.ItemFramework;
 
-[assembly: MelonInfo(typeof(RightClickSplitMod.RightClickSplitMod), "RightClickSplitMod", "0.1.0", "xVilho")]
+[assembly: MelonInfo(typeof(CtrlSplit.CtrlSplit), "CtrlSplit", "1.0", "xVilho")]
 [assembly: MelonColor(255, 200, 150, 255)]
 
-namespace RightClickSplitMod
+namespace CtrlSplit
 {
-    public class RightClickSplitMod : MelonMod
+    public class CtrlSplit : MelonMod
     {
+        private static ItemSlot cachedSlot = null;
+        private static bool rightClickHeld = false;
+        private static MelonLogger.Instance Logger;
+
         public override void OnInitializeMelon()
         {
-            HarmonyInstance.PatchAll(typeof(RightClickSplitMod));
-            MelonLogger.Msg("✅ RightClickSplitMod initialized with proper scroll handling!");
+            Logger = LoggerInstance; // capture for static use
+            Logger.Msg("✅ initialized");
+            HarmonyInstance.PatchAll(typeof(CtrlSplit));
         }
 
         [HarmonyPostfix]
         [HarmonyPatch(typeof(ItemUIManager), "Update")]
         private static void PostfixUpdate(ItemUIManager __instance)
         {
-            bool ctrlHeld = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
-            if (!ctrlHeld)
-                return;
+            // Cache hovered slot on right-click down
+            if (Input.GetMouseButtonDown(1))
+            {
+                cachedSlot = __instance.HoveredSlot?.assignedSlot;
+                rightClickHeld = true;
+            }
+            else if (Input.GetMouseButtonUp(1))
+            {
+                rightClickHeld = false;
+                cachedSlot = null;
+            }
 
-            if (!Input.GetMouseButton(1))
+            // Check Ctrl + RightClick + Scroll
+            bool ctrlHeld = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
+            if (!ctrlHeld || !rightClickHeld)
                 return;
 
             float scroll = Input.mouseScrollDelta.y;
@@ -37,35 +53,34 @@ namespace RightClickSplitMod
                 return;
 
             int scrollDirection = scroll > 0f ? 1 : -1;
-
-            // Define step size
             int step = 5;
-            int maxAmount = 59;
+            int maxAmount = 999;
+
+            // Get true max amount from ItemData
+            var instance = cachedSlot?.ItemInstance;
+            if (instance != null)
+            {
+                var data = instance.GetItemData();
+                if (data != null)
+                    maxAmount = Mathf.Max(data.Quantity - 1, 1); // Leave 1 behind
+            }
 
             int newAmount;
-
             if (scrollDirection > 0)
             {
-                // Scroll up: next multiple of 5
-                if (currentAmount == 1)
-                    newAmount = 5;
-                else
-                    newAmount = Mathf.Min(((currentAmount - 1) / step + 1) * step, maxAmount);
+                newAmount = currentAmount == 1
+                    ? step
+                    : Mathf.Min(((currentAmount - 1) / step + 1) * step, maxAmount);
             }
             else
             {
-                // Scroll down: previous multiple of 5, but minimum is 1
-                if (currentAmount <= step)
-                    newAmount = 1;
-                else
-                    newAmount = Mathf.Max(((currentAmount - 1) / step) * step - step, 1);
+                newAmount = currentAmount <= step
+                    ? 0
+                    : Mathf.Max(((currentAmount - 1) / step) * step - step, 1);
             }
 
             __instance.SetDraggedAmount(newAmount);
-
-            MelonLogger.Msg($"[RightClickSplitMod] Ctrl held | Scroll: {scrollDirection} | Amount: {currentAmount} → {newAmount}");
+            Logger.Msg($"Ctrl+Mb1+Scroll | {currentAmount} → {newAmount} (max: {maxAmount + 1})");
         }
-
     }
 }
-
